@@ -17,6 +17,7 @@ type Triangulator struct {
 	maxRadius float64
 	tolerance float64
 
+	points    map[fauxgl.Vector]fauxgl.Vector
 	triangles []*fauxgl.Triangle
 }
 
@@ -26,7 +27,8 @@ func NewTriangulator(im image.Image, minDetail, maxDetail int, meanRadius, minEl
 	maxReal := meanRadius + maxElevation
 	minRadius := (meanRadius + minElevation*exaggeration) * scale
 	maxRadius := (meanRadius + maxElevation*exaggeration) * scale
-	return &Triangulator{texture, minDetail, maxDetail, minReal, maxReal, minRadius, maxRadius, tolerance, nil}
+	points := make(map[fauxgl.Vector]fauxgl.Vector)
+	return &Triangulator{texture, minDetail, maxDetail, minReal, maxReal, minRadius, maxRadius, tolerance, points, nil}
 }
 
 func (t *Triangulator) Triangulate() *fauxgl.Mesh {
@@ -71,6 +73,9 @@ func (t *Triangulator) leaf(v1, v2, v3 fauxgl.Vector) {
 	p1 := t.texture.Displace(v1, t.minRadius, t.maxRadius)
 	p2 := t.texture.Displace(v2, t.minRadius, t.maxRadius)
 	p3 := t.texture.Displace(v3, t.minRadius, t.maxRadius)
+	t.points[v1] = p1
+	t.points[v2] = p2
+	t.points[v3] = p3
 	triangle := fauxgl.NewTriangleForPoints(p1, p2, p3)
 	t.triangles = append(t.triangles, triangle)
 }
@@ -96,6 +101,10 @@ func (t *Triangulator) withinTolerance(depth int, plane Plane, v1, v2, v3 fauxgl
 	p23 := t.texture.Displace(v23, t.minReal, t.maxReal)
 	if plane.DistanceToPoint(p23) > t.tolerance {
 		return false
+	}
+
+	if depth == 1 {
+		return true
 	}
 
 	return t.withinTolerance(depth-1, plane, v1, v12, v13) &&

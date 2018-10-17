@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/fogleman/demsphere"
 	"github.com/fogleman/fauxgl"
@@ -14,10 +15,24 @@ var (
 	outputFile = kingpin.Flag("output", "Output STL file to write.").Required().Short('o').String()
 )
 
+func timed(name string) func() {
+	if len(name) > 0 {
+		fmt.Printf("%s... ", name)
+	}
+	start := time.Now()
+	return func() {
+		fmt.Println(time.Since(start))
+	}
+}
+
 func main() {
+	var done func()
+
 	kingpin.Parse()
 
+	done = timed("reading input")
 	im, err := fauxgl.LoadImage(*inputFile)
+	done()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -32,13 +47,15 @@ func main() {
 
 	// mars
 	triangulator := demsphere.NewTriangulator(
-		im, 6, 12, 3396190, -8201, 21241, 50, 3, 1.0/3396190)
+		im, 0, 10, 3396190, -8201, 21241, 1000, 10, 1.0/3396190)
 
 	// pluto
 	// triangulator := demsphere.NewTriangulator(
 	// 	im, 6, 12, 1188300, -4101, 6491, 50, 3, 1.0/1188300)
 
+	done = timed("generating mesh")
 	mesh := triangulator.Triangulate()
+	done()
 	fmt.Println(len(mesh.Triangles))
 
 	inner := fauxgl.NewSphere(4)
@@ -48,7 +65,9 @@ func main() {
 
 	fmt.Println(len(mesh.Triangles))
 
+	done = timed("writing output")
 	mesh.SaveSTL(*outputFile)
+	done()
 }
 
 // 4,5120,4.7372172692
