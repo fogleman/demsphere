@@ -15,7 +15,9 @@ type Triangulator struct {
 	maxOutputRadius float64
 	tolerance       float64
 
-	points    map[Vector]Vector
+	points map[Vector]Vector
+	counts map[int]int
+
 	temp      []Triangle
 	triangles []Triangle
 }
@@ -27,7 +29,8 @@ func NewTriangulator(im image.Image, minDetail, maxDetail int, meanRadius, minEl
 	minOutputRadius := (meanRadius + minElevation*exaggeration) * scale
 	maxOutputRadius := (meanRadius + maxElevation*exaggeration) * scale
 	points := make(map[Vector]Vector)
-	return &Triangulator{texture, minDetail, maxDetail, minRadius, maxRadius, minOutputRadius, maxOutputRadius, tolerance, points, nil, nil}
+	counts := make(map[int]int)
+	return &Triangulator{texture, minDetail, maxDetail, minRadius, maxRadius, minOutputRadius, maxOutputRadius, tolerance, points, counts, nil, nil}
 }
 
 func (tri *Triangulator) Triangulate() []Triangle {
@@ -36,6 +39,9 @@ func (tri *Triangulator) Triangulate() []Triangle {
 	for _, t := range NewIcosahedron() {
 		tri.triangulate(0, t.A, t.B, t.C)
 	}
+	// for d := 0; d <= tri.maxDetail; d++ {
+	// 	fmt.Println(d, tri.counts[d])
+	// }
 	for _, t := range tri.temp {
 		tri.split(t.A, t.B, t.C)
 	}
@@ -66,6 +72,7 @@ func (tri *Triangulator) split(v1, v2, v3 Vector) {
 func (tri *Triangulator) triangulate(detail int, v1, v2, v3 Vector) {
 	if detail == tri.maxDetail {
 		tri.leaf(v1, v2, v3)
+		tri.counts[detail]++
 		return
 	}
 
@@ -79,11 +86,12 @@ func (tri *Triangulator) triangulate(detail int, v1, v2, v3 Vector) {
 		p3 := tri.texture.Displace(v3, tri.minRadius, tri.maxRadius)
 		plane := MakePlane(p1, p2, p3)
 		depth := tri.maxDetail - detail + 1
-		if depth > 6 {
-			depth = 6
+		if depth > 5 {
+			depth = 5
 		}
 		if tri.withinTolerance(depth, plane, v1, v2, v3) {
 			tri.leaf(v1, v2, v3)
+			tri.counts[detail]++
 			return
 		}
 	}

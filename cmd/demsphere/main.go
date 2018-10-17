@@ -47,7 +47,7 @@ func main() {
 
 	// mars
 	triangulator := demsphere.NewTriangulator(
-		im, 0, 12, 3396190, -8201, 21241, 100, 10, 1.0/3396190)
+		im, 9, 12, 3396190, -8201, 21241, 50, 10, 1.0/3396190)
 
 	// pluto
 	// triangulator := demsphere.NewTriangulator(
