@@ -4,8 +4,6 @@ import (
 	"image"
 	"image/draw"
 	"math"
-
-	"github.com/fogleman/fauxgl"
 )
 
 type Texture struct {
@@ -53,7 +51,7 @@ func (t *Texture) BilinearSample(u, v float64) float64 {
 	return d
 }
 
-func (t *Texture) SphericalSample(spherical fauxgl.Vector) float64 {
+func (t *Texture) SphericalSample(spherical Vector) float64 {
 	lat := math.Acos(spherical.Z)
 	lng := math.Atan2(spherical.Y, spherical.X)
 	u := (lng + math.Pi) / (2 * math.Pi)
@@ -61,7 +59,7 @@ func (t *Texture) SphericalSample(spherical fauxgl.Vector) float64 {
 	return t.BilinearSample(u, v)
 }
 
-func (t *Texture) Displace(spherical fauxgl.Vector, lo, hi float64) fauxgl.Vector {
+func (t *Texture) Displace(spherical Vector, lo, hi float64) Vector {
 	return spherical.MulScalar(lo + t.SphericalSample(spherical)*(hi-lo))
 }
 

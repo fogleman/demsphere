@@ -2,104 +2,128 @@ package demsphere
 
 import (
 	"image"
-
-	"github.com/fogleman/fauxgl"
 )
 
 type Triangulator struct {
 	texture *Texture
 
-	minDetail int
-	maxDetail int
-	minReal   float64
-	maxReal   float64
-	minRadius float64
-	maxRadius float64
-	tolerance float64
+	minDetail       int
+	maxDetail       int
+	minRadius       float64
+	maxRadius       float64
+	minOutputRadius float64
+	maxOutputRadius float64
+	tolerance       float64
 
-	points    map[fauxgl.Vector]fauxgl.Vector
-	triangles []*fauxgl.Triangle
+	points    map[Vector]Vector
+	temp      []Triangle
+	triangles []Triangle
 }
 
 func NewTriangulator(im image.Image, minDetail, maxDetail int, meanRadius, minElevation, maxElevation, tolerance, exaggeration, scale float64) *Triangulator {
 	texture := NewTexture(im)
-	minReal := meanRadius + minElevation
-	maxReal := meanRadius + maxElevation
-	minRadius := (meanRadius + minElevation*exaggeration) * scale
-	maxRadius := (meanRadius + maxElevation*exaggeration) * scale
-	points := make(map[fauxgl.Vector]fauxgl.Vector)
-	return &Triangulator{texture, minDetail, maxDetail, minReal, maxReal, minRadius, maxRadius, tolerance, points, nil}
+	minRadius := meanRadius + minElevation
+	maxRadius := meanRadius + maxElevation
+	minOutputRadius := (meanRadius + minElevation*exaggeration) * scale
+	maxOutputRadius := (meanRadius + maxElevation*exaggeration) * scale
+	points := make(map[Vector]Vector)
+	return &Triangulator{texture, minDetail, maxDetail, minRadius, maxRadius, minOutputRadius, maxOutputRadius, tolerance, points, nil, nil}
 }
 
-func (t *Triangulator) Triangulate() *fauxgl.Mesh {
-	t.triangles = nil
-	for _, triangle := range fauxgl.NewIcosahedron().Triangles {
-		v1 := triangle.V1.Position
-		v2 := triangle.V2.Position
-		v3 := triangle.V3.Position
-		t.triangulate(0, v1, v2, v3)
+func (tri *Triangulator) Triangulate() []Triangle {
+	tri.temp = nil
+	tri.triangles = nil
+	for _, t := range NewIcosahedron() {
+		tri.triangulate(0, t.A, t.B, t.C)
 	}
-	return fauxgl.NewTriangleMesh(t.triangles)
+	for _, t := range tri.temp {
+		tri.split(t.A, t.B, t.C)
+	}
+	return tri.triangles
 }
 
-func (t *Triangulator) triangulate(detail int, v1, v2, v3 fauxgl.Vector) {
-	if detail == t.maxDetail {
-		t.leaf(v1, v2, v3)
+func (tri *Triangulator) split(v1, v2, v3 Vector) {
+	v12 := bisect(v1, v2)
+	v23 := bisect(v2, v3)
+	v31 := bisect(v3, v1)
+	if _, ok := tri.points[v12]; ok {
+		tri.split(v1, v12, v3)
+		tri.split(v12, v2, v3)
+	} else if _, ok := tri.points[v23]; ok {
+		tri.split(v1, v2, v23)
+		tri.split(v23, v3, v1)
+	} else if _, ok := tri.points[v31]; ok {
+		tri.split(v1, v2, v31)
+		tri.split(v31, v2, v3)
+	} else {
+		p1 := tri.points[v1]
+		p2 := tri.points[v2]
+		p3 := tri.points[v3]
+		tri.triangles = append(tri.triangles, Triangle{p1, p2, p3})
+	}
+}
+
+func (tri *Triangulator) triangulate(detail int, v1, v2, v3 Vector) {
+	if detail == tri.maxDetail {
+		tri.leaf(v1, v2, v3)
 		return
 	}
 
-	v12 := v1.Add(v2).DivScalar(2).Normalize()
-	v13 := v1.Add(v3).DivScalar(2).Normalize()
-	v23 := v2.Add(v3).DivScalar(2).Normalize()
+	v12 := bisect(v1, v2)
+	v23 := bisect(v2, v3)
+	v31 := bisect(v3, v1)
 
-	if detail >= t.minDetail {
-		p1 := t.texture.Displace(v1, t.minReal, t.maxReal)
-		p2 := t.texture.Displace(v2, t.minReal, t.maxReal)
-		p3 := t.texture.Displace(v3, t.minReal, t.maxReal)
+	if detail >= tri.minDetail {
+		p1 := tri.texture.Displace(v1, tri.minRadius, tri.maxRadius)
+		p2 := tri.texture.Displace(v2, tri.minRadius, tri.maxRadius)
+		p3 := tri.texture.Displace(v3, tri.minRadius, tri.maxRadius)
 		plane := MakePlane(p1, p2, p3)
-		if t.withinTolerance(3, plane, v1, v2, v3) {
-			t.leaf(v1, v2, v3)
+		depth := tri.maxDetail - detail + 1
+		if depth > 6 {
+			depth = 6
+		}
+		if tri.withinTolerance(depth, plane, v1, v2, v3) {
+			tri.leaf(v1, v2, v3)
 			return
 		}
 	}
 
-	t.triangulate(detail+1, v1, v12, v13)
-	t.triangulate(detail+1, v2, v23, v12)
-	t.triangulate(detail+1, v3, v13, v23)
-	t.triangulate(detail+1, v12, v23, v13)
+	tri.triangulate(detail+1, v1, v12, v31)
+	tri.triangulate(detail+1, v2, v23, v12)
+	tri.triangulate(detail+1, v3, v31, v23)
+	tri.triangulate(detail+1, v12, v23, v31)
 }
 
-func (t *Triangulator) leaf(v1, v2, v3 fauxgl.Vector) {
-	p1 := t.texture.Displace(v1, t.minRadius, t.maxRadius)
-	p2 := t.texture.Displace(v2, t.minRadius, t.maxRadius)
-	p3 := t.texture.Displace(v3, t.minRadius, t.maxRadius)
-	t.points[v1] = p1
-	t.points[v2] = p2
-	t.points[v3] = p3
-	triangle := fauxgl.NewTriangleForPoints(p1, p2, p3)
-	t.triangles = append(t.triangles, triangle)
+func (tri *Triangulator) leaf(v1, v2, v3 Vector) {
+	p1 := tri.texture.Displace(v1, tri.minOutputRadius, tri.maxOutputRadius)
+	p2 := tri.texture.Displace(v2, tri.minOutputRadius, tri.maxOutputRadius)
+	p3 := tri.texture.Displace(v3, tri.minOutputRadius, tri.maxOutputRadius)
+	tri.points[v1] = p1
+	tri.points[v2] = p2
+	tri.points[v3] = p3
+	tri.temp = append(tri.temp, Triangle{v1, v2, v3})
 }
 
-func (t *Triangulator) withinTolerance(depth int, plane Plane, v1, v2, v3 fauxgl.Vector) bool {
+func (tri *Triangulator) withinTolerance(depth int, plane Plane, v1, v2, v3 Vector) bool {
 	if depth == 0 {
 		return true
 	}
 
-	v12 := v1.Add(v2).DivScalar(2).Normalize()
-	p12 := t.texture.Displace(v12, t.minReal, t.maxReal)
-	if plane.DistanceToPoint(p12) > t.tolerance {
+	v12 := bisect(v1, v2)
+	p12 := tri.texture.Displace(v12, tri.minRadius, tri.maxRadius)
+	if plane.DistanceToPoint(p12) > tri.tolerance {
 		return false
 	}
 
-	v13 := v1.Add(v3).DivScalar(2).Normalize()
-	p13 := t.texture.Displace(v13, t.minReal, t.maxReal)
-	if plane.DistanceToPoint(p13) > t.tolerance {
+	v23 := bisect(v2, v3)
+	p23 := tri.texture.Displace(v23, tri.minRadius, tri.maxRadius)
+	if plane.DistanceToPoint(p23) > tri.tolerance {
 		return false
 	}
 
-	v23 := v2.Add(v3).DivScalar(2).Normalize()
-	p23 := t.texture.Displace(v23, t.minReal, t.maxReal)
-	if plane.DistanceToPoint(p23) > t.tolerance {
+	v31 := bisect(v3, v1)
+	p13 := tri.texture.Displace(v31, tri.minRadius, tri.maxRadius)
+	if plane.DistanceToPoint(p13) > tri.tolerance {
 		return false
 	}
 
@@ -107,8 +131,8 @@ func (t *Triangulator) withinTolerance(depth int, plane Plane, v1, v2, v3 fauxgl
 		return true
 	}
 
-	return t.withinTolerance(depth-1, plane, v1, v12, v13) &&
-		t.withinTolerance(depth-1, plane, v2, v23, v12) &&
-		t.withinTolerance(depth-1, plane, v3, v13, v23) &&
-		t.withinTolerance(depth-1, plane, v12, v23, v13)
+	return tri.withinTolerance(depth-1, plane, v1, v12, v31) &&
+		tri.withinTolerance(depth-1, plane, v2, v23, v12) &&
+		tri.withinTolerance(depth-1, plane, v3, v31, v23) &&
+		tri.withinTolerance(depth-1, plane, v12, v23, v31)
 }

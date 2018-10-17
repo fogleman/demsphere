@@ -47,26 +47,32 @@ func main() {
 
 	// mars
 	triangulator := demsphere.NewTriangulator(
-		im, 0, 10, 3396190, -8201, 21241, 1000, 10, 1.0/3396190)
+		im, 0, 12, 3396190, -8201, 21241, 100, 10, 1.0/3396190)
 
 	// pluto
 	// triangulator := demsphere.NewTriangulator(
 	// 	im, 6, 12, 1188300, -4101, 6491, 50, 3, 1.0/1188300)
 
 	done = timed("generating mesh")
-	mesh := triangulator.Triangulate()
+	triangles := triangulator.Triangulate()
 	done()
-	fmt.Println(len(mesh.Triangles))
 
-	inner := fauxgl.NewSphere(4)
-	inner.Transform(fauxgl.Scale(fauxgl.V(0.85, 0.85, 0.85)))
-	inner.ReverseWinding()
-	mesh.Add(inner)
+	fmt.Println(len(triangles))
 
-	fmt.Println(len(mesh.Triangles))
+	// inner := fauxgl.NewSphere(4)
+	// inner.Transform(fauxgl.Scale(fauxgl.V(0.85, 0.85, 0.85)))
+	// inner.ReverseWinding()
+	// for _, t := range inner.Triangles {
+	// 	p1 := demsphere.Vector(t.V1.Position)
+	// 	p2 := demsphere.Vector(t.V2.Position)
+	// 	p3 := demsphere.Vector(t.V3.Position)
+	// 	triangles = append(triangles, demsphere.Triangle{p1, p2, p3})
+	// }
+
+	// fmt.Println(len(triangles))
 
 	done = timed("writing output")
-	mesh.SaveSTL(*outputFile)
+	demsphere.WriteSTLFile(*outputFile, triangles)
 	done()
 }
 
