@@ -22,8 +22,21 @@ func main() {
 		log.Fatal(err)
 	}
 
+	// mercury
+	// triangulator := demsphere.NewTriangulator(
+	// 	im, 6, 12, 2439400, -10764, 8994, 50, 4, 1.0/2439400)
+
+	// moon
+	// triangulator := demsphere.NewTriangulator(
+	// 	im, 6, 11, 1737400, -18257, 21563, 50, 3, 1.0/1737400)
+
+	// mars
 	triangulator := demsphere.NewTriangulator(
-		im, 6, 11, 1737400, -18257, 21563, 50, 3, 1.0/1737400)
+		im, 6, 12, 3396190, -8201, 21241, 50, 3, 1.0/3396190)
+
+	// pluto
+	// triangulator := demsphere.NewTriangulator(
+	// 	im, 6, 12, 1188300, -4101, 6491, 50, 3, 1.0/1188300)
 
 	mesh := triangulator.Triangulate()
 	fmt.Println(len(mesh.Triangles))
