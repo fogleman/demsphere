@@ -5,6 +5,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/disintegration/imaging"
 	"github.com/fogleman/demsphere"
 	"github.com/fogleman/fauxgl"
 	kingpin "gopkg.in/alecthomas/kingpin.v2"
@@ -42,12 +43,12 @@ func main() {
 	// 	im, 6, 12, 2439400, -10764, 8994, 50, 4, 1.0/2439400)
 
 	// moon
-	// triangulator := demsphere.NewTriangulator(
-	// 	im, 6, 11, 1737400, -18257, 21563, 50, 3, 1.0/1737400)
+	triangulator := demsphere.NewTriangulator(
+		im, 6, 9, 1737400, -18257, 21563, 50*5, 1, 1.0/1737400)
 
 	// mars
-	triangulator := demsphere.NewTriangulator(
-		im, 9, 12, 3396190, -8201, 21241, 50, 10, 1.0/3396190)
+	// triangulator := demsphere.NewTriangulator(
+	// 	im, 9, 12, 3396190, -8201, 21241, 50, 10, 1.0/3396190)
 
 	// pluto
 	// triangulator := demsphere.NewTriangulator(
@@ -57,6 +58,16 @@ func main() {
 	triangles := triangulator.Triangulate()
 	done()
 
+	fmt.Println(len(triangles))
+
+	im = imaging.Invert(im)
+	triangulator = demsphere.NewTriangulator(
+		im, 6, 9, 1737400, -18257, 21563, 50*5, 1, 1.0/1737400*0.75)
+	inner := triangulator.Triangulate()
+	for i, t := range inner {
+		inner[i] = demsphere.Triangle{t.C, t.B, t.A}
+	}
+	triangles = append(triangles, inner...)
 	fmt.Println(len(triangles))
 
 	// inner := fauxgl.NewSphere(4)
